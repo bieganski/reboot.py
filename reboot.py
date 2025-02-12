@@ -4,10 +4,10 @@ import ctypes
 from enum import Enum
 import platform
 from argparse import ArgumentParser
-import time
 import signal
 import os
 import sys
+from socket import *
 
 libc = ctypes.CDLL(None)
 
@@ -28,8 +28,11 @@ reboot_syscall_nr = {
 }
 
 def reboot():
-    print("reboot!")
-    sys.stdout.flush()
+    try:
+        print("reboot!")
+        sys.stdout.flush()
+    except:
+        pass # may fail, if process is disowned
 
     libc.syscall(
         reboot_syscall_nr[system_get_cpu_arch()],
@@ -44,9 +47,16 @@ if __name__ == "__main__":
     parser.add_argument("server_mode", nargs="?", choices=["server"])
     
     if parser.parse_args().server_mode:
+        port = 1234
+
+        print(f"Running in server mode: To reboot either 1) send SIGUSR1 to PID {os.getpid()} or 2) connect to port {port}")
+
         signal.signal(signal.SIGUSR1, lambda *_: reboot())
-        print(f"Running in server mode: Send SIGUSR1 to PID {os.getpid()} to reboot")
-        while True:
-            time.sleep(1)
+        s = socket(AF_INET, SOCK_STREAM)
+        s.bind(("0.0.0.0", port))
+        s.listen(1)
+        conn, addr = s.accept()
+        conn.close()
+        reboot()
     else:
         reboot()
